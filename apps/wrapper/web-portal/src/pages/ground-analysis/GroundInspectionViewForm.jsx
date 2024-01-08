@@ -1,15 +1,15 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { AiOutlineClose, AiOutlineCheck } from "react-icons/ai";
 import { FaAngleRight,FaFileDownload  } from "react-icons/fa";
-
 import { Card, Button } from "./../../components";
 
-import NocModal from "./NocModal";
 import StatusLogModal from "./StatusLogModal";
 import IssueNocModal from "./IssueNocModal.jsx";
 import RejectNocModal from "./RejectNocModal";
 import OGASidebar from "./OGASidebar";
+import CommonModal from "./../../Modal";
+import {  Tooltip } from "@material-tailwind/react";
 
 import ADMIN_ROUTE_MAP from "../../routes/adminRouteMap";
 import {
@@ -20,7 +20,9 @@ import {
   getAcceptApplicantCertificate,
   registerEvent,
   updateFormStatus,
-  base64ToPdf
+  updateFormStatusForOGA,
+  base64ToPdf,
+  sendEmailNotification
 } from "../../api";
 import { getPrefillXML } from "./../../api/formApi";
 import { ContextAPI } from "../../utils/ContextAPI";
@@ -57,6 +59,11 @@ export default function ApplicationPage({
   const userDetails = getCookie("userData");
   const [formLoaded, setFormLoaded] = useState(false);
   let [isDownloading, setIsDownloading] = useState(false);
+  const [onSubmit, setOnSubmit] = useState(false);
+  const [ogaRevertedCount, setOgaRevertedCount] = useState(0);
+ // let enketoFormSubmitButton = "";
+  let isFormSubmittedForConfiirmation = false;
+  const navigation = useNavigate();
 
   const user_details = userDetails?.userRepresentation;
 
@@ -82,6 +89,7 @@ export default function ApplicationPage({
   };
 
   const setIframeFormURI = async (formDataObj) => {
+    console.log("formDataObj------",formDataObj)
     const form_path = `${GCP_URL}${formDataObj?.form_name}.xml`;
     let formURI = await getPrefillXML(
       `${form_path}`,
@@ -89,6 +97,9 @@ export default function ApplicationPage({
       formDataObj?.form_data,
       formDataObj?.imageUrls
     );
+    
+   // ogaRevertedCount = formDataFromApi?.oga_reverted_count;
+    console.log("oga_reverted_count******************",ogaRevertedCount)
     setEncodedFormURI(formURI);
   };
 
@@ -99,6 +110,9 @@ export default function ApplicationPage({
       const formData = res.data.form_submissions[0];
       setFormDataFromApi(res.data.form_submissions[0]);
       const statusOfForm = formData?.form_status;
+     // ogaRevertedCount = formData?.oga_reverted_count;
+      setOgaRevertedCount(formData?.oga_reverted_count)
+      console.log("FormDataFromApi------",res.data.form_submissions[0])
       setFormStatus(statusOfForm);
       setInstituteId(formData?.institute?.id);
       setIframeFormURI(formData);
@@ -108,6 +122,62 @@ export default function ApplicationPage({
       // setSpinner(false);
     }
   };
+
+  
+  
+  const handleFormReturnSubmit = async () => {
+    isFormSubmittedForConfiirmation = false;
+    setOnSubmit(false);
+    try {
+      //console.log(formDataFromApi)
+     // ogaRevertedCount = formDataFromApi.oga_reverted_count;
+      await updateFormStatusForOGA({
+        form_id: formSelected.form_id * 1,
+        form_status: "Returned",
+        oga_reverted_count: ogaRevertedCount + 1
+      });
+      
+      //email notify
+
+      if (formDataFromApi?.institute?.email) {
+        const emailData = {
+          recipientEmail: [`${formDataFromApi?.institute?.email}`],
+          emailSubject: `Application Returned!`,
+          emailBody: `<!DOCTYPE html><html><head><meta charset='utf-8'><title>Your Email Title</title><link href='https://fonts.googleapis.com/css2?family=Mulish:wght@400;600&display=swap' rel='stylesheet'></head><body style='font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;'><table width='100%' bgcolor='#ffffff' cellpadding='0' cellspacing='0' border='0'><tr><td style='padding: 20px; text-align: center; background-color: #F5F5F5;'><img src='https://regulator.upsmfac.org/images/upsmf.png' alt='Logo' style='max-width: 360px;'></td></tr></table><table width='100%' bgcolor='#ffffff' cellpadding='0' cellspacing='0' border='0'><tr><td style='padding: 36px;'><p style='color: #555555; font-size: 18px; font-family: 'Mulish', Arial, sans-serif;'>Dear ${formDataFromApi?.institute?.name},</p><p style='color: #555555; font-size: 18px; line-height: 1.6; font-family: 'Mulish', Arial, sans-serif;'>We hope this email finds you well. We are writing to kindly request the resubmission of your application for the affiliation process. We apologize for any inconvenience caused, but it appears that there was an issue with the initial submission, and we did not receive the full information for proceeding to next steps.</p><p style='color: #555555; font-size: 18px; line-height: 1.6; font-family: 'Mulish', Arial, sans-serif;'>We kindly request that you resubmit your application using the following steps:
+            <p>1. Please find your Returned application in the application inbox.</p>
+            <p>2. You can open the Returned application to view the returning officer's comments. The comments will help you to understand the gaps and bridge them.</p>
+            <p>3. You can resubmit the Returned application after you are done with making the required changes. Please ensure to keep saving the application as draft while you progress.</p></p><p style='color: #555555; font-size: 18px; line-height: 1.6; font-family: 'Mulish', Arial, sans-serif;'>We understand that this may require some additional effort on your part, and we sincerely appreciate your cooperation. Rest assured that we will treat your resubmitted application with the utmost attention and consideration during our evaluation process.</p><p style='color: #555555; font-size: 18px; line-height: 1.6; font-family: 'Mulish', Arial, sans-serif;'>If you have any questions or need further clarification regarding the resubmission process, please do not hesitate to reach out to our support executives at <Contact Details>. We are here to assist you and provide any necessary guidance.</p><p style='color: #555555; font-size: 18px; line-height: 1.6; font-family: 'Mulish', Arial, sans-serif;'></p>Please note that the deadline for resubmitting your application is <deadline date>. Applications received after this date may not be considered for the current affiliation process.<p style='color: #555555; font-size: 18px; line-height: 1.6; font-family: 'Mulish', Arial, sans-serif;'></p>We look forward to receiving your updated application.<p style='color: #555555; font-size: 18px; line-height: 1.6; font-family: 'Mulish', Arial, sans-serif;'>Thank you for your time and continued interest in getting affiliated from our organization.</p></td></tr></table></body></html>`,
+        };
+
+        await sendEmailNotification(emailData);
+    
+        setToast((prevState) => ({
+          ...prevState,
+          toastOpen: true,
+          toastMsg: "The form has been returned to applicant!",
+          toastType: "success",
+        }));
+       
+      }
+      //enketoFormSubmitButton.style.display = "none";
+      //iframeContent.getElementById("submit-form").style.display = "none";
+      
+      navigation(ADMIN_ROUTE_MAP.adminModule.onGroundInspection.home);
+   
+    } catch (error) {
+      console.log(error)
+      setToast((prevState) => ({
+        ...prevState,
+        toastOpen: true,
+        toastMsg: "Failed to return form to applicant!",
+        toastType: "error",
+      }));
+    } finally {
+      setSpinner(false);
+    }
+   
+
+  }
 
   const handleRejectOGA = async () => {
     const postData = {
@@ -235,15 +305,28 @@ export default function ApplicationPage({
     }
   };
 
-  const handleFormEvents = async (e) => {
+  const afterFormSubmit = async (e) => {
+    const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+    try {
+      if (data?.state === "ON_FORM_SUCCESS_COMPLETED") {
+        isFormSubmittedForConfiirmation = true;
+        setOnSubmit(true);
+      }
+    } catch (e) {
+      console.log("error = ", e);
+    }
+  };
+
+  const handleFormEvents = async (afterFormSubmit, e) => {
     if(typeof e.data === 'string' && e.data.includes('formLoad')) {
       setFormLoaded(true);
       return;
     }
+    afterFormSubmit(e);
   }
 
   const handleEventTrigger = async (e) => {
-    handleFormEvents(e);
+    handleFormEvents(afterFormSubmit, e);
   };
 
   const bindEventListener = () => {
@@ -270,7 +353,16 @@ export default function ApplicationPage({
         });
       }
 
-      iframeContent.getElementById("submit-form").style.display = "none";
+      //iframeContent.getElementById("submit-form").style.display = "none";
+      const submitFormbuttonElement = iframeContent.getElementById('submit-form');
+      //setSubmitButton(submitFormbuttonElement)
+      //enketoFormSubmitButton = submitFormbuttonElement;
+      const spanElement = submitFormbuttonElement?.children[1];
+      spanElement.textContent = 'Return to applicant';
+
+      if(ogaRevertedCount > 2 || formStatus.toLowerCase() === "returned"){
+        submitFormbuttonElement.style.display = "none";
+      }
       iframeContent.getElementById("save-draft").style.display = "none";
     }
 
@@ -422,9 +514,13 @@ export default function ApplicationPage({
               />
             </div>
             <div className="flex w-full flex-col gap-4">
+            {/*   {console.log("ogaRevertedCount_____",ogaRevertedCount)} */}
               <Card moreClass="flex flex-col gap-5 shadow-md">
                 {formSelected && !formSelected?.noc_recommendation && (
                   <div className="flex grow gap-4 justify-end items-center">
+                      {(ogaRevertedCount > 2) && (<Tooltip arrow content="This form has been resubmitted 3 times. No more reverts possible.">
+                    &#9432;
+                    </Tooltip>)}
                     <button
                       onClick={() => handleVerifyOGA(true)}
                       className="border border-gray-500 text-green-600 w-[140px] h-[40px] font-medium rounded-[4px]"
@@ -491,6 +587,31 @@ export default function ApplicationPage({
           setOpenIssueNocModel={setOpenIssueNocModel}
           instituteId={instituteId}
         />
+      )}
+       {onSubmit && (
+        <CommonModal>
+          <p className="text-secondary text-2xl text-semibold font-medium text-center">
+            Are you sure, do you want to <span className="text-red-500">return</span>  this application with remarks to the applicant?
+          </p>
+
+          <div className="flex flex-row justify-center w-full py-4 gap-5">
+            <div
+              className="border border-primary bg-primary py-3 px-8 rounded-[4px] cursor-pointer items-center"
+              onClick={() => {
+                isFormSubmittedForConfiirmation = false;
+                setOnSubmit(false);
+              }}
+            >
+              No
+            </div>
+            <div
+              className="bg-primary-900 py-3 rounded-[4px] px-8 text-white items-center gap-3 border border-primary py-3 px-7 cursor-pointer"
+              onClick={() => handleFormReturnSubmit()}
+            >
+              Yes! Return
+            </div>
+          </div>
+        </CommonModal>
       )}
     </>
   );

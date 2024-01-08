@@ -8,6 +8,7 @@ const API_URL = {
   common: {
     registerEvent: `${rest}addEvents`,
     updateForm: `${rest}updateForm`,
+    updateFormStatusForOGA: `${rest}updateFormStatusForOGA`,
     updateRegulatorDeviceId: `${rest}updateRegulatorDeviceId`,
   },
   notifications: {
@@ -51,7 +52,8 @@ const API_URL = {
     filterForms: `${rest}filterForms`,
     createCourses: `${rest}createCourse`,
     updateForms: `${rest}updateForms`,
-    getCourses: `${rest}getCourseMapping`
+    getCourses: `${rest}getCourseMapping`,
+    findForms: `${rest}findForms`,
   },
   manageUsers: {
     getAllAssessors: `${rest}getAllAssessors`,

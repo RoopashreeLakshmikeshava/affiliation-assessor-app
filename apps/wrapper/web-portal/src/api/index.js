@@ -126,6 +126,15 @@ export const createForm = async (postData) => {
   return res;
 };
 
+export const findFormsWithSameName = async (postData) => {
+  return await adminCustomPost.get(
+    API_URL.manageForms.findForms,
+    postData
+  );
+};
+
+
+
 export const getForms = async (postData) => {
   const res = await adminCustomPost.post(
     API_URL.manageForms.getForms,
@@ -649,6 +658,11 @@ export const getRejectedCount = async (postData) => {
 //other common APIs
 export const updateFormStatus = async (postData) => {
   const res = await adminCustomPost.put(API_URL.common.updateForm, postData);
+  return res;
+};
+
+export const updateFormStatusForOGA = async (postData) => {
+  const res = await adminCustomPost.put(API_URL.common.updateFormStatusForOGA, postData);
   return res;
 };
 
