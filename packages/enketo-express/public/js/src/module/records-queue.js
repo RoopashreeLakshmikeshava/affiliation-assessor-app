@@ -244,6 +244,10 @@ function uploadQueue() {
                     } )
                     .then( () => {
                         successes.push( record.name );
+                        window.parent.postMessage(JSON.stringify({
+                            formData: record,
+                            message: 'assessor-form-submitted'
+                        }), '*');
                         uploadProgress.update( record.instanceId, 'success', '', successes.length + fails.length, records.length );
 
                         return store.record.remove( record.instanceId )
