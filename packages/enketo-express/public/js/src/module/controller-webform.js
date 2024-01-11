@@ -478,6 +478,7 @@ function _saveRecord(survey, draft = true, recordName, confirmed, errorMsg) {
 
     return fileManager.getCurrentFiles()
         .then(files => {
+            // const formModel = form.model.data.modelStr;
             // build the record object
             const record = {
                 'draft': draft,
