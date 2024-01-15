@@ -242,11 +242,11 @@ const GenericOdkForm = (props) => {
     const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
     try {
       const { nextForm, formDataXml, onSuccessData, onFailureData } = data;
-      if (data?.state === "ON_FORM_SUCCESS_COMPLETED") {
-        if (!previewFlag) {
-          await getDataFromLocal();
-          handleRenderPreview();
-        } else {
+      // if (data?.state === "ON_FORM_SUCCESS_COMPLETED") {
+        // if (!previewFlag) {
+          // await getDataFromLocal();
+          // handleRenderPreview();
+        // } else {
           // For read-only forms, it will disable the Submit...
           if (date) {
             setErrorModal(true);
@@ -287,9 +287,9 @@ const GenericOdkForm = (props) => {
               () => navigate(`${ROUTE_MAP.thank_you}${formName}`),
               1000
             );
-          }
+          // }
         }
-      }
+      // }
 
       if (nextForm?.type === "form") {
         setFormId(nextForm.id);
@@ -324,9 +324,10 @@ const GenericOdkForm = (props) => {
   }
 
   const handleSubmissionEvents = (e) => {
-    console.log("ee =>", e);
-    if(typeof e.data === 'string' && e.data.includes('assessor-form-submitted')) {
-      console.log(" form submitted");
+    const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+    console.log("data ==>",data.message);
+    if(data) {
+      afterFormSubmit(e);
       return;
     }
     else {
