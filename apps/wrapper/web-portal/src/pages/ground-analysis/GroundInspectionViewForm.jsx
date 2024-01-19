@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { AiOutlineClose, AiOutlineCheck } from "react-icons/ai";
 import { FaAngleRight,FaFileDownload  } from "react-icons/fa";
 import { Card, Button } from "./../../components";
+import XMLParser from "react-xml-parser";
 
 import StatusLogModal from "./StatusLogModal";
 import IssueNocModal from "./IssueNocModal.jsx";
@@ -24,6 +25,10 @@ import {
   base64ToPdf,
   sendEmailNotification
 } from "../../api";
+import {
+  getFromLocalForage,
+  setToLocalForage,
+} from "../../forms";
 import { getPrefillXML } from "./../../api/formApi";
 import { ContextAPI } from "../../utils/ContextAPI";
 import { getCookie, getLocalTimeInISOFormat } from "../../utils";
@@ -40,6 +45,7 @@ export default function ApplicationPage({
   closeCertificateModal,
 }) {
   const reportTemplateRef = useRef(null);
+  
   const [formStatus, setFormStatus] = useState("");
   const [formDataFromApi, setFormDataFromApi] = useState();
   const [rejectModel, setRejectModel] = useState(false);
@@ -47,7 +53,6 @@ export default function ApplicationPage({
   const [openModel, setOpenModel] = useState(false);
   const [openStatusModel, setOpenStatusModel] = useState(false);
   const [openIssueNocModel, setOpenIssueNocModel] = useState(false);
-  const [encodedFormURI, setEncodedFormURI] = useState("");
   let { formName, formId, instituteName, round, date } = useParams();
   let [instituteId, setInstituteId] = useState();
   let [selectRound, setSelectRound] = useState(round);
@@ -87,6 +92,8 @@ export default function ApplicationPage({
       },
     },
   };
+  const [encodedFormURI, setEncodedFormURI] = useState(JSON.stringify(formSpec.formId));
+  const startingForm = formSpec.start;
 
   const setIframeFormURI = async (formDataObj) => {
     console.log("formDataObj------",formDataObj)
@@ -97,6 +104,7 @@ export default function ApplicationPage({
       formDataObj?.form_data,
       formDataObj?.imageUrls
     );
+
     
    // ogaRevertedCount = formDataFromApi?.oga_reverted_count;
     console.log("oga_reverted_count******************",ogaRevertedCount)
@@ -119,7 +127,7 @@ export default function ApplicationPage({
     } catch (error) {
       console.log(error);
     } finally {
-      // setSpinner(false);
+      setSpinner(false);
     }
   };
 
@@ -150,7 +158,7 @@ export default function ApplicationPage({
             <p>3. You can resubmit the Returned application after you are done with making the required changes. Please ensure to keep saving the application as draft while you progress.</p></p><p style='color: #555555; font-size: 18px; line-height: 1.6; font-family: 'Mulish', Arial, sans-serif;'>We understand that this may require some additional effort on your part, and we sincerely appreciate your cooperation. Rest assured that we will treat your resubmitted application with the utmost attention and consideration during our evaluation process.</p><p style='color: #555555; font-size: 18px; line-height: 1.6; font-family: 'Mulish', Arial, sans-serif;'>If you have any questions or need further clarification regarding the resubmission process, please do not hesitate to reach out to our support executives at <Contact Details>. We are here to assist you and provide any necessary guidance.</p><p style='color: #555555; font-size: 18px; line-height: 1.6; font-family: 'Mulish', Arial, sans-serif;'></p>Please note that the deadline for resubmitting your application is <deadline date>. Applications received after this date may not be considered for the current affiliation process.<p style='color: #555555; font-size: 18px; line-height: 1.6; font-family: 'Mulish', Arial, sans-serif;'></p>We look forward to receiving your updated application.<p style='color: #555555; font-size: 18px; line-height: 1.6; font-family: 'Mulish', Arial, sans-serif;'>Thank you for your time and continued interest in getting affiliated from our organization.</p></td></tr></table></body></html>`,
         };
 
-        await sendEmailNotification(emailData);
+        // await sendEmailNotification(emailData);
     
         setToast((prevState) => ({
           ...prevState,
@@ -318,55 +326,130 @@ export default function ApplicationPage({
     }
   };
 
-  const handleFormEvents = async (afterFormSubmit, e) => {
+  const handleFormEvents = async (startingForm, afterFormSubmit, e) => {
     if(typeof e.data === 'string' && e.data.includes('formLoad')) {
       setFormLoaded(true);
       return;
+    }
+    if (
+      ENKETO_URL === e.origin + "/enketo" &&
+      typeof e?.data === "string" &&
+      JSON.parse(e?.data)?.state !== "ON_FORM_SUCCESS_COMPLETED" &&
+      !isFormSubmittedForConfiirmation
+    ) {
+      var formData = new XMLParser().parseFromString(
+        JSON.parse(e.data).formData
+      );
+      if (formData) {
+        let images = JSON.parse(e.data).fileURLs;
+        let prevData = await getFromLocalForage(
+          `${userId}_${startingForm}_${new Date().toISOString().split("T")[0]}`
+        );
+
+        await setToLocalForage(
+          `${userId}_${startingForm}_${new Date().toISOString().split("T")[0]}`,
+          {
+            formData: JSON.parse(e.data).formData,
+            // imageUrls: { ...prevData?.imageUrls, ...images },
+          }
+        );
+      }
     }
     afterFormSubmit(e);
   }
 
   const handleEventTrigger = async (e) => {
-    handleFormEvents(afterFormSubmit, e);
+    handleFormEvents(startingForm, afterFormSubmit, e);
   };
 
   const bindEventListener = () => {
     window.addEventListener("message", handleEventTrigger);
   };
 
+  // const checkIframeLoaded = () => {
+  //   if (!window.location.host.includes("localhost")) {
+  //     const iframeElem = document.getElementById("enketo_OGA_preview");
+  //     var iframeContent =
+  //       iframeElem?.contentDocument || iframeElem?.contentWindow.document;
+  //     if (!iframeContent) return;
+
+  //     var section = iframeContent?.getElementsByClassName("or-group");
+  //     if (!section) return;
+  //     for (var i = 0; i < section?.length; i++) {
+  //       var inputElements = section[i].querySelectorAll("input");
+  //       var buttonElements = section[i].querySelectorAll("button");
+  //       buttonElements.forEach((button) => {
+  //         button.disabled = true;
+  //       })
+  //       inputElements.forEach((input) => {
+  //         input.disabled = true;
+  //       });
+  //     }
+
+  //     //iframeContent.getElementById("submit-form").style.display = "none";
+  //     const submitFormbuttonElement = iframeContent.getElementById('submit-form');
+  //     //setSubmitButton(submitFormbuttonElement)
+  //     //enketoFormSubmitButton = submitFormbuttonElement;
+  //     const spanElement = submitFormbuttonElement?.children[1];
+  //     spanElement.textContent = 'Return to applicant';
+
+  //     if(ogaRevertedCount > 2 || formStatus.toLowerCase() === "returned"){
+  //       submitFormbuttonElement.style.display = "none";
+  //     }
+  //     iframeContent.getElementById("save-draft").style.display = "none";
+  //   }
+
+  //   setSpinner(false);
+  // };
+
   const checkIframeLoaded = () => {
-    if (!window.location.host.includes("localhost")) {
-      const iframeElem = document.getElementById("enketo_OGA_preview");
+    if (window.location.host.includes("regulator.upsmfac")) {
+      const iframeElem = document?.getElementById("enketo_DA_preview");
       var iframeContent =
         iframeElem?.contentDocument || iframeElem?.contentWindow.document;
-      if (!iframeContent) return;
-
-      var section = iframeContent?.getElementsByClassName("or-group");
-      if (!section) return;
-      for (var i = 0; i < section?.length; i++) {
-        var inputElements = section[i].querySelectorAll("input");
-        var buttonElements = section[i].querySelectorAll("button");
-        buttonElements.forEach((button) => {
-          button.disabled = true;
-        })
-        inputElements.forEach((input) => {
-          input.disabled = true;
-        });
+      if (
+        formDataFromApi &&
+        formDataFromApi?.form_status?.toLowerCase() !==
+          "application submitted" &&
+        formDataFromApi?.form_status?.toLowerCase() !== "resubmitted"
+      ) {
+        var section = iframeContent?.getElementsByClassName("or-group");
+        if (!section) return;
+        for (var i = 0; i < section?.length; i++) {
+          var inputElements = section[i].querySelectorAll("input");
+          var buttonElements = section[i].querySelectorAll("button");
+          
+          buttonElements.forEach((button) => {
+            button.disabled = true;
+          });
+          inputElements.forEach((input) => {
+            input.disabled = true;
+          });
+          /* partial logic to test disabling fields */
+        }
+        iframeContent.getElementById("submit-form").style.display = "none";
       }
+      // manipulate span element text content
+      const buttonElement = iframeContent.getElementById('submit-form');
+       const spanElement = buttonElement?.children[1];
+       spanElement.textContent = 'Return to applicant';
 
-      //iframeContent.getElementById("submit-form").style.display = "none";
-      const submitFormbuttonElement = iframeContent.getElementById('submit-form');
-      //setSubmitButton(submitFormbuttonElement)
-      //enketoFormSubmitButton = submitFormbuttonElement;
-      const spanElement = submitFormbuttonElement?.children[1];
-      spanElement.textContent = 'Return to applicant';
-
-      if(ogaRevertedCount > 2 || formStatus.toLowerCase() === "returned"){
-        submitFormbuttonElement.style.display = "none";
-      }
+      // Need to work on Save draft...
       iframeContent.getElementById("save-draft").style.display = "none";
-    }
+      // var draftButton = iframeContent.getElementById("save-draft");
+      // draftButton?.addEventListener("click", function () {
+      //   alert("Hello world!");
+      // });
+      if(ogaRevertedCount > 2 || formStatus.toLowerCase() === "resubmitted"){
+        iframeContent.getElementById("submit-form").style.display = "none";
+      }
 
+      var optionElements = iframeContent.getElementsByClassName('option-label');
+      if (!optionElements) return;
+      for(var k = 0; k < optionElements.length; k++ ) {
+        optionElements[k].style.color = '#333333';
+      } 
+    }
     setSpinner(false);
   };
 

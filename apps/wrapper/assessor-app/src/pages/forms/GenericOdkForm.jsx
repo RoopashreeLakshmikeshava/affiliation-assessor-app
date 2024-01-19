@@ -5,6 +5,7 @@ import { faXmark } from "@fortawesome/free-solid-svg-icons";
 
 import ROUTE_MAP from "../../routing/routeMap";
 import { StateContext } from "../../App";
+import XMLParser from "react-xml-parser";
 
 import {
   getStatusOfForms,
@@ -18,7 +19,6 @@ import {
 import {
   getCookie,
   getFormData,
-  handleFormEvents,
   updateFormData,
   removeItemFromLocalForage,
   getSpecificDataFromForage,
@@ -243,16 +243,13 @@ const GenericOdkForm = (props) => {
     try {
       const { nextForm, formDataXml, onSuccessData, onFailureData } = data;
       // if (data?.state === "ON_FORM_SUCCESS_COMPLETED") {
-        // if (!previewFlag) {
-          // await getDataFromLocal();
-          // handleRenderPreview();
-        // } else {
           // For read-only forms, it will disable the Submit...
           if (date) {
             setErrorModal(true);
             return;
           }
-          const updatedFormData = await updateFormData(formSpec.start, data?.formDataXml, data?.fileURLs);
+          console.log("formDataXML =>", data);
+          const updatedFormData = await updateFormData(formSpec.start, data?.formData.xml, data?.formData.files.fileURLs);
           const storedData = await getSpecificDataFromForage("required_data");
 
           const requestData = {
@@ -267,10 +264,7 @@ const GenericOdkForm = (props) => {
             course_id: courseObj["course_id"],
             submitted_on: new Date().toJSON().slice(0, 10),
             schedule_id: storedData?.schedule_id,
-          }
-
-          
-          
+          } 
           const res = await updateFormSubmissions(requestData);
           if (res?.data?.update_form_submissions) {
             updateSubmissionForms(courseObj["course_id"]);
@@ -287,10 +281,8 @@ const GenericOdkForm = (props) => {
               () => navigate(`${ROUTE_MAP.thank_you}${formName}`),
               1000
             );
-          // }
         }
       // }
-
       if (nextForm?.type === "form") {
         setFormId(nextForm.id);
         setOnFormSuccessData(onSuccessData);
@@ -326,8 +318,8 @@ const GenericOdkForm = (props) => {
   const handleSubmissionEvents = (e) => {
     const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
     console.log("data ==>",data.message);
-    if(data) {
-      afterFormSubmit(e);
+    if(data !== undefined && data.message === 'assessor-form-submitted') {
+      handleFormEvents(startingForm, afterFormSubmit, e);
       return;
     }
     else {
@@ -336,13 +328,42 @@ const GenericOdkForm = (props) => {
   }
 
   const handleEventTrigger = async (e) => {
-    handleFormEvents(startingForm, afterFormSubmit, e);
     handleFormLoadEvents(e);
     handleSubmissionEvents(e);
   };
 
   const bindEventListener = () => {
     window.addEventListener("message", handleEventTrigger);
+  };
+
+  
+  const handleFormEvents = async (startingForm, afterFormSubmit, e) => {
+    const user = getCookie("userData");
+    const event = e;
+    if (
+      ((ENKETO_URL === `${event.origin}/enketo`) || (ENKETO_URL === `${event.origin}/enketo/`)) &&
+      // e.origin === ENKETO_URL &&
+      typeof event.data === "string" &&
+      JSON.parse(event.data).state !== "ON_FORM_SUCCESS_COMPLETED"
+    ) {
+      var formDataObject = JSON.parse(event.data);
+      if (formDataObject.formData) {
+        let images = formDataObject.formData.files;
+        let prevData = await getFromLocalForage(
+          `${startingForm}_${new Date().toISOString().split("T")[0]}`
+        );
+        await setToLocalForage(
+          `${user?.userRepresentation?.id}_${startingForm}_${
+            new Date().toISOString().split("T")[0]
+          }`,
+          {
+            formData: formDataObject.formData.xml,
+            imageUrls: { ...prevData?.imageUrls, ...images },
+          }
+        );
+      }
+    }
+    afterFormSubmit(event);
   };
 
   const detachEventBinding = () => {
@@ -389,6 +410,12 @@ const GenericOdkForm = (props) => {
     draftButton?.addEventListener("click", function () {
       //alert("Hello world!");
     });
+
+    var optionElements = iframeContent.getElementsByClassName('option-label');
+    if (!optionElements) return;
+    for(var k = 0; k < optionElements.length; k++ ) {
+      optionElements[k].style.color = '#333333';
+    }
   };
 
   const handleRenderPreview = () => {
@@ -563,8 +590,9 @@ const GenericOdkForm = (props) => {
     <>
     <CommonLayout
       {...props.commonLayoutProps}
-      formUrl={`${ENKETO_URL}/preview?formSpec=${encodedFormSpec}&xform=${encodedFormURI}&userId=${user?.userRepresentation?.id}`}
-      formPreview={true}
+     // formUrl={`${ENKETO_URL}/preview?formSpec=${encodedFormSpec}&xform=${encodedFormURI}&userId=${user?.userRepresentation?.id}`}
+     formUrl = {surveyUrl} 
+     formPreview={true}
       setIsPreview={setIsPreview}
     >
       {!isPreview && (
